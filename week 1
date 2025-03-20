@@ -1,0 +1,246 @@
+Step 1: Set Up the Project Structure
+1.  Create the Project Directory:
+mkdir ecommerce-platform
+cd ecommerce-platform
+2. Initialize the Backend:
+mkdir backend
+cd backend
+npm init -y
+npm install express mongoose bcryptjs jsonwebtoken cors dotenv
+3. Initialize the Frontend: Open a new terminal window and run:
+cd ..
+npx create-react-app frontend
+cd frontend
+npm install axios react-router-dom
+Step 2: Backend Setup
+1. Create the Basic Server: Create a file named server.js in the backend directory.
+// backend/server.js
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB connected'))
+    .catch(err => console.log(err));
+
+// Define routes
+app.use('/api/users', require('./routes/users'));
+app.use('/api/products', require('./routes/products'));
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+2. Create User and Product Models: Create a models directory and add User .js and Product.js.
+// backend/models/User.js
+const mongoose = require('mongoose');
+
+const UserSchema = new mongoose.Schema({
+    username: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+});
+
+module.exports = mongoose.model('User ', UserSchema);
+
+// backend/models/Product.js
+const mongoose = require('mongoose');
+
+const ProductSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    description: { type: String, required: true },
+    imageUrl: { type: String, required: true },
+});
+
+module.exports = mongoose.model('Product', ProductSchema);
+
+3. Create User and Product Routes: Create a routes directory and add users.js and products.js.
+// backend/routes/users.js
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const router = express.Router();
+
+// Sign Up
+router.post('/signup', async (req, res) => {
+    const { username, email, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser  = new User({ username, email, password: hashedPassword });
+    await newUser .save();
+    res.status(201).json({ message: 'User  created' });
+});
+
+// Sign In
+router.post('/signin', async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: 'User  not found' });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+});
+
+module.exports = router;
+
+// backend/routes/products.js
+const express = require('express');
+const Product = require('../models/Product');
+const router = express.Router();
+
+// Get all products
+router.get('/', async (req, res) => {
+    const products = await Product.find();
+    res.json(products);
+});
+
+// Add a new product (for admin use)
+router.post('/', async (req, res) => {
+    const { name, price, description, imageUrl } = req.body;
+    const newProduct = new Product({ name, price , description, imageUrl });
+    await newProduct.save();
+    res.status(201).json({ message: 'Product added' });
+});
+
+module.exports = router;
+
+Step 3: Frontend Setup
+1. Create Sign In and Sign Up Pages: In the frontend/src directory, create a folder named pages and add SignIn.js and SignUp.js.
+// frontend/src/pages/SignIn.js
+import React, { useState } from 'react';
+import axios from 'axios';
+
+const SignIn = () => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await axios.post('http://localhost:5000/api/users/signin', { email, password });
+            localStorage.setItem('token', response.data.token);
+            alert('Sign in successful');
+        } catch (error) {
+            alert('Error signing in');
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+            <button type="submit">Sign In</button>
+        </form>
+    );
+};
+
+export default SignIn;
+
+// frontend/src/pages/SignUp.js
+import React, { useState } from 'react';
+import axios from 'axios';
+
+const SignUp = () => {
+    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.post('http://localhost:5000/api/users/signup', { username, email, password });
+            alert('Sign up successful');
+        } catch (error) {
+            alert('Error signing up');
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" required />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+            <button type="submit">Sign Up</button>
+        </form>
+    );
+};
+
+export default SignUp;
+
+2. Create a Product Page: Add a ProductPage.js file in the pages directory.
+// frontend/src/pages/ProductPage.js
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+const ProductPage = () => {
+    const [products, setProducts] = useState([]);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            const response = await axios.get('http://localhost:5000/api/products');
+            setProducts(response.data);
+        };
+        fetchProducts();
+    }, []);
+
+    return (
+        <div>
+            <h1>Products</h1>
+            <ul>
+                {products.map(product => (
+                    <li key={product._id}>
+                        <h2>{product.name}</h2>
+                        <p>{product.description}</p>
+                        <p>${product.price}</p>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+export default ProductPage;
+
+3. Set Up Routing: In frontend/src/App.js, set up routing for the application.
+// frontend/src/App.js
+import React from 'react';
+import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import SignIn from './pages/SignIn';
+import SignUp from './pages/SignUp';
+import ProductPage from './pages/ProductPage';
+
+const App = () => {
+    return (
+        <Router>
+            <Switch>
+                <Route path="/signin" component={SignIn} />
+                <Route path="/signup" component={SignUp} />
+                <Route path="/products" component={ProductPage} />
+            </Switch>
+        </Router>
+    );
+};
+
+export default App;
+
+Step 4: Run the Application
+1. Start the Backend: In the backend directory, create a .env file with your MongoDB connection string and JWT secret:
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
+
+Then, run the backend server:
+node server.js
+
+2. Start the Frontend: In the frontend directory, run:
+npm start
+
+Conclusion
+You now have a basic custom e-commerce platform using the MERN stack. The application includes user authentication, product management, and a simple interface for users to sign in, sign up, and view products. You can expand this project by adding features like shopping cart functionality, order processing, and user profile management.
