@@ -1,0 +1,185 @@
+Step 1: Update User Model
+
+First, let's create the User model with the specified fields. In the models/User.js file, update the schema as follows:
+
+models/User.js:
+
+javascript
+Run
+Copy code
+1const mongoose = require('mongoose');
+2
+3const userSchema = new mongoose.Schema({
+4    firstName: { type: String, required: true },
+5    lastName: { type: String, required: true },
+6    email: { type: String, required: true, unique: true },
+7    password: { type: String, required: true },
+8    fatherName: { type: String },
+9    dob: { type: Date },
+10    branch: { type: String },
+11    rollNo: { type: String, unique: true },
+12    section: { type: String },
+13    address: { type: String },
+14    mobileNo: { type: String }
+15});
+16
+17module.exports = mongoose.model('User ', userSchema);
+Step 2: Update Product Model
+
+If you haven't created the Product model yet, create it in models/Product.js:
+
+models/Product.js:
+
+javascript
+Run
+Copy code
+1const mongoose = require('mongoose');
+2
+3const productSchema = new mongoose.Schema({
+4    title: { type: String, required: true },
+5    price: { type: Number, required: true },
+6    description: { type: String, required: true },
+7    category: { type: String, required: true },
+8    image: { type: String, required: true },
+9    rating: { type: Number, required: true },
+10    discount: { type: Number, required: true },
+11    offerPrice: { type: Number, required: true },
+12    reviews: { type: [String], default: [] }
+13});
+14
+15module.exports = mongoose.model('Product', productSchema);
+Step 3: Implement APIs in index.js
+
+Now, let's implement the required APIs in your index.js file.
+
+index.js:
+
+javascript
+Run
+Copy code
+1const express = require('express');
+2const mongoose = require('mongoose');
+3const bcrypt = require('bcrypt');
+4const Product = require('./models/Product');
+5const User = require('./models/User');
+6require('dotenv').config();
+7
+8const app = express();
+9const PORT = 3000;
+10
+11// Middleware
+12app.use(express.json());
+13
+14// MongoDB connection
+15const mongoURI = process.env.MONGODB_URI;
+16mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+17    .then(() => console.log('MongoDB connected'))
+18    .catch(err => console.log(err));
+19
+20// POST API for adding products
+21app.post('/api/products', async (req, res) => {
+22    try {
+23        const product = new Product(req.body);
+24        await product.save();
+25        res.status(201).send(product);
+26    } catch (error) {
+27        res.status(400).send(error);
+28    }
+29});
+30
+31// GET API to retrieve all products
+32app.get('/api/products', async (req, res) => {
+33    try {
+34        const products = await Product.find();
+35        res.status(200).send(products);
+36    } catch (error) {
+37        res.status(500).send(error);
+38    }
+39});
+40
+41// Signup API
+42app.post('/api/signup', async (req, res) => {
+43    try {
+44        const hashedPassword = await bcrypt.hash(req.body.password, 10);
+45        const user = new User({ ...req.body, password: hashedPassword });
+46        await user.save();
+47        res.status(201).send(user);
+48    } catch (error) {
+49        res.status(400).send(error);
+50    }
+51});
+52
+53// Login API
+54app.post('/api/login', async (req, res) => {
+55    const { rollNo, password } = req.body;
+56    try {
+57        const user = await User.findOne({ rollNo });
+58        if (!user) {
+59            return res.status(401).send('Invalid credentials');
+60        }
+61        const isMatch = await bcrypt.compare(password, user.password);
+62        if (!isMatch) {
+63            return res.status(401).send('Invalid credentials');
+64        }
+65        res.status(200).send(user);
+66    } catch (error) {
+67        res.status(500).send(error);
+68    }
+69});
+70
+71// Start server
+72app.listen(PORT, () => {
+73    console.log(`Server is running on http://localhost:${PORT}`);
+74});
+Step 4: Testing the APIs
+
+Start the server:
+
+bash
+Run
+Copy code
+1nodemon index.js
+Use Postman to test the APIs:
+
+POST /api/products: Send a POST request with a JSON body containing product details:
+json
+Run
+Copy code
+1{
+2    "title": "Product 1",
+3    "price": 100,
+4    "description": "Description of Product 1",
+5    "category": "Category 1",
+"image": "http://example.com/image1.jpg", "rating": 4.5, "discount": 10, "offerPrice": 90, "reviews": ["Great product!", "Loved it!"] } ```
+
+GET /api/products: Send a GET request to retrieve all products.
+POST /api/signup: Send a POST request with user details:
+
+json
+Run
+Copy code
+1{
+2    "firstName": "John",
+3    "lastName": "Doe",
+4    "email": "john.doe@example.com",
+5    "password": "securepassword",
+6    "fatherName": "Mr. Doe",
+7    "dob": "2000-01-01",
+8    "branch": "Computer Science",
+9    "rollNo": "CS123",
+10    "section": "A",
+11    "address": "123 Main St",
+12    "mobileNo": "1234567890"
+13}
+POST /api/login: Send a POST request with roll number and password:
+
+json
+Run
+Copy code
+1{
+2    "rollNo": "CS123",
+3    "password": "securepassword"
+4}
+Conclusion
+
+This implementation provides a complete backend setup with Express.js and MongoDB, including the necessary APIs for managing products and user authentication. You can further enhance this application by adding features like input validation, error handling, and more advanced security measures.
